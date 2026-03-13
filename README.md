@@ -76,7 +76,11 @@ python verify_setup.py
 
 This checks Python version, all packages, the dataset, model artifacts, and an end-to-end `bridge.py` call. Fix any failures before continuing.
 
-### 5. Run the training pipeline
+### 5. Run the training pipeline (optional)
+
+> **The trained model artifacts are already included in the repository** (`models/*.pkl`).
+> You only need to run this if you want to retrain from scratch or the dataset has changed.
+> Skip to Step 6 if you just want to use the pre-bundled model.
 
 ```bash
 python main.py
@@ -143,7 +147,7 @@ MediAssist/
 ## Using bridge.py (Frontend Integration)
 
 `bridge.py` is the **only file a frontend application needs to import**.
-Run `main.py` once to generate the model artifacts, then call `get_prediction()`.
+Model artifacts are pre-bundled in `models/` so you can call `get_prediction()` immediately after cloning.
 Artifacts are lazy-loaded on the first call and cached for all subsequent calls.
 No need to manage model state yourself.
 
