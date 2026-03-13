@@ -126,40 +126,6 @@ def train_lightgbm(X_train: np.ndarray, y_train: np.ndarray) -> LGBMClassifier:
     logger.info("Best LightGBM params: %s | CV Recall: %.4f", search.best_params_, search.best_score_)
     return best_model
 
-class SoftVotingEnsemble:
-    """
-    Inference-only soft voting ensemble that averages predict_proba outputs
-    from a list of already-fitted models. No additional training is required.
-
-    Averaging probabilities from diverse models (RF, LightGBM, XGBoost) reduces
-    individual model variance, produces better-calibrated probability scores,
-    and raises the Precision-Recall curve ceiling compared to any single model.
-    An improved PR curve means: at the same high recall (e.g. 97%), the ensemble
-    can achieve higher precision than any one component.
-    """
-
-    def __init__(self, estimators: list, name: str = "Soft Voting Ensemble"):
-        self.estimators_ = estimators
-        self._name = name
-
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        probs = np.mean([m.predict_proba(X) for m in self.estimators_], axis=0)
-        return probs
-
-    def predict(self, X: np.ndarray) -> np.ndarray:
-        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
-
-    @property
-    def feature_importances_(self):
-        """Average feature importances from tree-based members."""
-        importances = [
-            m.feature_importances_
-            for m in self.estimators_
-            if hasattr(m, "feature_importances_")
-        ]
-        if importances:
-            return np.mean(importances, axis=0)
-        raise AttributeError("No member with feature_importances_")
 
 def evaluate_model(
     model,

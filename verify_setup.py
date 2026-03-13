@@ -21,7 +21,7 @@ import json
 
 REQUIRED_PACKAGES = [
     "pandas", "numpy", "sklearn", "matplotlib",
-    "seaborn", "joblib", "lightgbm", "streamlit",
+    "seaborn", "joblib", "lightgbm", "xgboost", "streamlit",
 ]
 
 REQUIRED_ARTIFACT_FILES = [

@@ -556,13 +556,13 @@ def main():
     # -------------------------------------------------------------------
     # Step 1: Dataset Acquisition
     # -------------------------------------------------------------------
-    logger.info("[1/6] Checking dataset...")
+    logger.info("[1/8] Checking dataset...")
     data_path = download_dataset(data_path)
 
     # -------------------------------------------------------------------
     # Step 2: Data Pipeline
     # -------------------------------------------------------------------
-    logger.info("[2/6] Running data pipeline...")
+    logger.info("[2/8] Running data pipeline...")
     pipeline = run_pipeline(str(data_path))
     X_train = pipeline["X_train"]
     X_val   = pipeline["X_val"]
@@ -672,6 +672,16 @@ def main():
             "  No precision improvement found; deploying %s (same recall ceiling)",
             new_best_name,
         )
+
+    # -------------------------------------------------------------------
+    # Step 6: Threshold summary
+    # -------------------------------------------------------------------
+    logger.info(
+        "[6/8] Threshold selection complete: deploying %s at threshold=%.4f "
+        "(Recall=%.4f, Precision=%.4f)",
+        new_best_name, new_best_threshold,
+        new_best_metrics["recall"], new_best_metrics["precision"],
+    )
 
     # -------------------------------------------------------------------
     # Step 7: Generate Plots
