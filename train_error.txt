@@ -1,0 +1,24 @@
+Traceback (most recent call last):
+  File "C:\Users\Hassan\Desktop\MediAssist\main.py", line 18, in <module>
+    import joblib
+  File "C:\Users\Hassan\Desktop\MediAssist\.venv\Lib\site-packages\joblib\__init__.py", line 115, in <module>
+    from ._parallel_backends import ParallelBackendBase
+  File "C:\Users\Hassan\Desktop\MediAssist\.venv\Lib\site-packages\joblib\_parallel_backends.py", line 21, in <module>
+    from .executor import get_memmapping_executor
+  File "C:\Users\Hassan\Desktop\MediAssist\.venv\Lib\site-packages\joblib\executor.py", line 11, in <module>
+    from ._memmapping_reducer import TemporaryResourcesManager, get_memmapping_reducers
+  File "C:\Users\Hassan\Desktop\MediAssist\.venv\Lib\site-packages\joblib\_memmapping_reducer.py", line 28, in <module>
+    import numpy as np
+  File "C:\Users\Hassan\Desktop\MediAssist\.venv\Lib\site-packages\numpy\__init__.py", line 470, in <module>
+    from . import lib, matrixlib as _mat
+  File "C:\Users\Hassan\Desktop\MediAssist\.venv\Lib\site-packages\numpy\lib\__init__.py", line 18, in <module>
+    from . import (
+    ...<23 lines>...
+    )
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1118, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1217, in get_data
+KeyboardInterrupt

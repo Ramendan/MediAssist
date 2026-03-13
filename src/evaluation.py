@@ -167,6 +167,93 @@ def plot_confusion_matrix(
     return save_path
 
 
+def plot_confusion_matrix_comparison(
+    scenarios: list[dict],
+    save_path: str,
+) -> str:
+    """
+    Generate a side-by-side panel of confusion matrices for direct comparison.
+
+    Each scenario dict must contain:
+        model     : fitted classifier with predict_proba
+        X_test    : feature array
+        y_test    : true labels
+        threshold : probability threshold
+        title     : subplot title text
+        highlight : bool — if True, use a warm colour map to mark the deployed panel
+
+    Supports 2, 3, or 4 panels. Intended to show the progression:
+        Default (0.50)  →  Single-model F2-tuned  →  Ensemble F2-tuned (deployed)
+
+    Parameters
+    ----------
+    scenarios  : list of scenario dicts
+    save_path  : output file path
+
+    Returns
+    -------
+    save_path
+    """
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    n = len(scenarios)
+    fig_width = max(7 * n, 14)
+    fig, axes = plt.subplots(1, n, figsize=(fig_width, 7))
+    if n == 1:
+        axes = [axes]
+
+    for ax, scenario in zip(axes, scenarios):
+        model     = scenario["model"]
+        X_test    = scenario["X_test"]
+        y_test    = scenario["y_test"]
+        threshold = scenario["threshold"]
+        title     = scenario["title"]
+        highlight = scenario.get("highlight", False)
+
+        y_prob = model.predict_proba(X_test)[:, 1]
+        y_pred = (y_prob >= threshold).astype(int)
+        cm     = confusion_matrix(y_test, y_pred)
+
+        rec  = recall_score(y_test, y_pred)
+        prec = precision_score(y_test, y_pred)
+        f1   = f1_score(y_test, y_pred)
+
+        cmap = "Oranges" if highlight else "Blues"
+        sns.heatmap(
+            cm,
+            annot=True,
+            fmt="d",
+            cmap=cmap,
+            xticklabels=["No Disease (0)", "Disease (1)"],
+            yticklabels=["No Disease (0)", "Disease (1)"],
+            linewidths=0.5,
+            linecolor="#cccccc",
+            annot_kws={"size": 14, "fontweight": "bold"},
+            ax=ax,
+        )
+        ax.set_xlabel("Predicted Label", fontsize=11)
+        ax.set_ylabel("True Label", fontsize=11)
+        ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
+
+        metrics_text = f"Recall: {rec:.4f}  |  Precision: {prec:.4f}  |  F1: {f1:.4f}"
+        box_color = "#fff3e0" if highlight else "#fafafa"
+        edge_color = "#ffb74d" if highlight else "#cccccc"
+        ax.text(
+            0.5, -0.14, metrics_text,
+            transform=ax.transAxes, ha="center", fontsize=10,
+            fontweight="bold", color="#333333",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor=box_color, edgecolor=edge_color),
+        )
+
+    fig.suptitle("Confusion Matrix Comparison", fontsize=15, fontweight="bold", y=1.02)
+    fig.tight_layout()
+    fig.savefig(save_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    logger.info("Confusion matrix comparison saved to %s", save_path)
+    return save_path
+
+
 def plot_feature_importance(
     model,
     feature_names: list[str],

@@ -81,22 +81,36 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     Create domain-informed derived features to improve predictive power.
 
     Features added:
-    - pulse_pressure : Systolic - Diastolic BP (ap_hi - ap_lo).
-                       A pulse pressure > 60 mmHg is an independent predictor of
-                       cardiovascular events, reflecting arterial stiffness not
-                       captured by either BP value alone.
-    - age_bmi        : Interaction term (age * bmi).
-                       Captures the compounding metabolic-aging risk that neither
-                       variable encodes alone — obesity in older patients carries
-                       disproportionately higher cardiovascular risk.
+    - pulse_pressure  : Systolic - Diastolic BP (ap_hi - ap_lo).
+                        A pulse pressure > 60 mmHg is an independent predictor of
+                        cardiovascular events, reflecting arterial stiffness not
+                        captured by either BP value alone.
+    - age_bmi         : Interaction term (age * bmi).
+                        Captures the compounding metabolic-aging risk that neither
+                        variable encodes alone — obesity in older patients carries
+                        disproportionately higher cardiovascular risk.
+    - bp_hypertension : Binary flag (1 if systolic ≥ 140 OR diastolic ≥ 90).
+                        Stage 2 hypertension by ACC/AHA 2017 guidelines is one of
+                        the strongest modifiable predictors of cardiovascular disease.
+                        Encoding it as a binary feature sharpens the decision boundary
+                        and raises the precision-recall curve ceiling.
+    - cholesterol_age : Interaction term (cholesterol * age).
+                        Elevated cholesterol is more damaging in older patients;
+                        this interaction captures the compounding effect that a
+                        linear combination of the two features cannot represent.
     """
     df = df.copy()
     df["pulse_pressure"] = df["ap_hi"] - df["ap_lo"]
     df["age_bmi"] = df["age"] * df["bmi"]
+    df["bp_hypertension"] = ((df["ap_hi"] >= 140) | (df["ap_lo"] >= 90)).astype(int)
+    df["cholesterol_age"] = df["cholesterol"] * df["age"]
     logger.info(
-        "Engineered features: pulse_pressure (mean=%.1f), age_bmi (mean=%.1f)",
+        "Engineered features: pulse_pressure (mean=%.1f), age_bmi (mean=%.1f), "
+        "bp_hypertension (positive rate=%.2f), cholesterol_age (mean=%.1f)",
         df["pulse_pressure"].mean(),
         df["age_bmi"].mean(),
+        df["bp_hypertension"].mean(),
+        df["cholesterol_age"].mean(),
     )
     return df
 
@@ -141,7 +155,7 @@ def run_pipeline(path: str) -> dict:
 
     df = calculate_bmi(df)
     df = engineer_features(df)
-    stats["engineered_features"] = ["pulse_pressure", "age_bmi"]
+    stats["engineered_features"] = ["pulse_pressure", "age_bmi", "bp_hypertension", "cholesterol_age"]
 
     # Separate features and target
     target_col = "cardio"

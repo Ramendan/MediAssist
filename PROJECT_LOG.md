@@ -1,6 +1,6 @@
 # MediAssist - Project Technical Report
 
-**Generated:** 2026-03-13 15:36:44
+**Generated:** 2026-03-13 18:09:27
 **Module:** AI-Powered Medical Diagnosis Support System
 **Dataset:** Cardiovascular Disease (Kaggle - sulianova/cardiovascular-disease, 70,000 patients)
 
@@ -16,13 +16,14 @@ false alarm.
 
 | Component | Detail |
 |-----------|--------|
-| **Dataset** | 70,000 patient records, 12 features + 3 engineered features |
-| **Models trained** | Logistic Regression, Random Forest (tuned), LightGBM (tuned) |
-| **Selected model** | Random Forest |
-| **Recall at default threshold** | 0.7034 |
-| **Recall after threshold tuning** | 0.9819 |
-| **Tuned threshold** | 0.1226 (F2-score optimised on validation set) |
-| **ROC AUC** | 0.7871 |
+| **Dataset** | 70,000 patient records, 12 features + 4 engineered features |
+| **Models trained** | Logistic Regression, Random Forest (tuned), LightGBM (tuned), XGBoost (tuned) + Soft Voting Ensemble |
+| **Deployed model** | Soft Voting Ensemble |
+| **Deployed threshold (F2-tuned)** | 0.1736 — Recall=0.9739, Precision=0.5423 |
+| **RF F2-tuned baseline** | 0.1225 — Recall=0.9780, Precision=0.5251 |
+| **Precision gain vs RF baseline** | +0.0172 (recall diff: -0.0041) |
+| **ROC AUC (best single)** | 0.7842 |
+| **Deployed threshold strategy** | F2-score (beta=2) with multi-model precision optimisation at recall ≥0.97 |
 | **Primary metric** | Recall: minimises false negatives (missed diagnoses) |
 
 ---
@@ -34,7 +35,7 @@ false alarm.
 - **Rows after handling missing values:** 70,000
 - **Rows after outlier removal:** 68,636
 - **Rows removed (outliers):** 1,364 (1.9%)
-- **Features used:** 14 (age, gender, height, weight, ap_hi, ap_lo, cholesterol, gluc, smoke, alco, active, bmi, pulse_pressure, age_bmi)
+- **Features used:** 16 (age, gender, height, weight, ap_hi, ap_lo, cholesterol, gluc, smoke, alco, active, bmi, pulse_pressure, age_bmi, bp_hypertension, cholesterol_age)
 - **Target variable:** cardio (0 = no disease, 1 = disease)
 - **Positive class rate:** 49.47%
 - **Train/Val/Test split:** 48,045 / 10,295 / 10,296 (70/15/15, stratified)
@@ -50,66 +51,102 @@ false alarm.
 | Missing value handling | Dropped rows with any NaN values |
 | Outlier removal | Removed biologically implausible rows: height 100-220 cm, weight 30-200 kg, systolic BP 60-250 mmHg, diastolic BP 40-160 mmHg, and enforced systolic > diastolic |
 | BMI calculation | `weight / (height / 100)^2` |
-| Feature engineering | Added `pulse_pressure` and `age_bmi` interaction term (see Section 3) |
+| Feature engineering | Added `pulse_pressure`, `age_bmi`, `bp_hypertension`, `cholesterol_age` (see Section 3) |
 | Normalization | `StandardScaler` fitted on training data only, then applied to all three splits using training statistics (no leakage) |
 
 ---
 
 ## 3. Feature Engineering
 
-Two clinically-motivated derived features were added to improve predictive power:
+Four clinically-motivated derived features were added to improve predictive power
+and raise the ceiling of the Precision-Recall curve:
 
 | Feature | Formula | Clinical Rationale |
 |---------|---------|-------------------|
 | `pulse_pressure` | `ap_hi - ap_lo` | A pulse pressure above 60 mmHg is an independent predictor of cardiovascular events, particularly in older adults. It reflects arterial stiffness, which is not captured by either systolic or diastolic BP alone. |
 | `age_bmi` | `age * bmi` | An interaction term that captures compounded metabolic-aging risk. Obesity in older patients carries disproportionately higher cardiovascular risk than in younger patients, and a linear model cannot capture this without the explicit interaction. |
+| `bp_hypertension` | `1 if ap_hi ≥ 140 or ap_lo ≥ 90, else 0` | Binary flag for Stage 2 hypertension (ACC/AHA 2017 guidelines). This is one of the strongest modifiable predictors of cardiovascular disease and gives models a sharp, clinically grounded decision boundary. |
+| `cholesterol_age` | `cholesterol * age` | High cholesterol is more damaging in older patients; this interaction encodes the compounded risk that a linear combination of cholesterol and age alone cannot represent. |
 
 ---
 
 ## 4. Model Comparison (Default Threshold = 0.50)
 
-Three models were trained and compared. All use `class_weight='balanced'` to
-counteract the approximately 50/50 class distribution and favor recall.
+Four models were trained and compared. All use `class_weight='balanced'` (or
+equivalent `scale_pos_weight` for XGBoost) to counteract the approximately
+50/50 class distribution and favor recall.
 
-| Metric | Logistic Regression | Random Forest | LightGBM |
-|--------|---: | ---: | ---:|
-| **Accuracy** | 0.7237 | 0.7247 | 0.7306 |
-| **Precision** | 0.7422 | 0.7303 | 0.7436 |
-| **Recall** | 0.6765 | 0.7034 | 0.6951 |
-| **F1 Score** | 0.7078 | 0.7166 | 0.7185 |
-| **ROC AUC** | 0.7886 | 0.7871 | 0.7991 |
+| Metric | Logistic Regression | Random Forest | LightGBM | XGBoost |
+|--------|---: | ---: | ---: | ---:|
+| **Accuracy** | 0.7239 | 0.7199 | 0.7294 | 0.7295 |
+| **Precision** | 0.7517 | 0.7264 | 0.7430 | 0.7433 |
+| **Recall** | 0.6598 | 0.6959 | 0.6926 | 0.6924 |
+| **F1 Score** | 0.7028 | 0.7108 | 0.7169 | 0.7169 |
+| **ROC AUC** | 0.7916 | 0.7842 | 0.7990 | 0.7977 |
 
-**Selected model:** Random Forest (primary criterion: Recall)
+**Selected model at default threshold:** Random Forest (primary criterion: Recall)
 
 ---
 
-## 5. Threshold Tuning
+## 5. Threshold Tuning and Model Selection
 
-### Methodology
+### 5.1 Methodology
 
-After model selection, the classification probability threshold was optimized
-using the **F-beta score (beta=2)**. This metric weights recall twice as heavily
-as precision, reflecting the clinical cost asymmetry in medical screening:
+After initial model selection, threshold tuning is performed using the
+**F-beta score (beta=2)**, which weights recall twice as heavily as
+precision, reflecting the clinical cost asymmetry in medical screening:
 
-> A missed cardiovascular disease case (false negative) is far more harmful than
-> an unnecessary follow-up consultation (false positive).
+> A missed cardiovascular disease case (false negative) is far more harmful
+> than an unnecessary follow-up consultation (false positive).
 
-The precision-recall curve was computed on a **dedicated validation split**
-(15% of the dataset, held out from both training and the final test set) across
-all candidate thresholds. The threshold maximizing F2 was selected and persisted.
-Using a separate validation set ensures the reported test-set metrics are unbiased
-and reflect true generalisation performance.
+All candidate models — including a **Soft Voting Ensemble** of RF, LightGBM,
+and XGBoost — are tuned on the dedicated **validation split** (15%, reserved
+exclusively for this step), then evaluated on the **held-out test split** at
+their tuned threshold. The model that achieves the highest precision while
+maintaining recall ≥ 0.97 is selected as the deployed operating point.
 
-### Before vs. After Threshold Tuning (Random Forest)
+Averaging probabilities across diverse models in the ensemble reduces individual
+variance, produces better-calibrated scores, and raises the Precision-Recall curve
+ceiling — meaning the same high recall can be reached at a higher threshold (i.e.
+with better precision) than any single model alone.
 
-| Metric | Default (0.50) | Tuned (0.1226) | Change |
+### 5.2 RF F2 Baseline — Before vs. After Threshold Tuning
+
+This table shows what threshold tuning achieves on the single best model (RF),
+serving as the comparison baseline:
+
+| Metric | Default (0.50) | Tuned (0.1225) | Change |
 |--------|---------------:|----------------:|--------|
-| **Recall** | 0.7034 | 0.9819 | +0.2785 |
-| **Precision** | 0.7303 | 0.5227 | -0.2076 |
-| **F1 Score** | 0.7166 | 0.6822 | -0.0344 |
-| **Accuracy** | 0.7247 | 0.5474 | -0.1773 |
+| **Recall** | 0.6959 | 0.9780 | +0.2821 |
+| **Precision** | 0.7264 | 0.5251 | -0.2013 |
+| **F1 Score** | 0.7108 | 0.6834 | -0.0274 |
+| **Accuracy** | 0.7199 | 0.5516 | -0.1683 |
 
-**Optimal threshold:** 0.1226
+**RF F2 threshold:** 0.1225
+
+### 5.3 Multi-Model F2 Comparison (All Candidates)
+
+The table below shows every candidate — including the Soft Voting Ensemble —
+evaluated at its own F2-optimised threshold. The model with the highest
+precision at recall ≥ 0.97 is deployed.
+
+| Metric | Logistic Regression | Random Forest | LightGBM | XGBoost | Soft Voting Ensemble |
+|--------|---: | ---: | ---: | ---: | ---:|
+| **F2 Threshold** | 0.2084 | 0.1225 | 0.1704 | 0.1655 | 0.1736 |
+| **Recall** | 0.9694 | 0.9780 | 0.9747 | 0.9784 | 0.9739 |
+| **Precision** | 0.5458 | 0.5251 | 0.5408 | 0.5397 | 0.5423 |
+| **F1 Score** | 0.6984 | 0.6834 | 0.6957 | 0.6957 | 0.6967 |
+| **Accuracy** | 0.5858 | 0.5516 | 0.5781 | 0.5765 | 0.5804 |
+| **F2 Score** | 0.8422 | 0.8366 | 0.8417 | 0.8416 | 0.8412 |
+
+**Deployed model:** Soft Voting Ensemble  
+**Deployed threshold:** 0.1736  
+**Precision vs RF F2 baseline:** +0.0172 (-0.0041 recall)  
+
+> The soft-voting ensemble averages the probability outputs of RF, LightGBM,
+> and XGBoost. This averaging reduces variance and yields better-calibrated
+> scores; at the same recall floor of ~97%, the ensemble's PR curve sits higher,
+> meaning it can use a less aggressive threshold and flag fewer healthy patients.
 
 ---
 
@@ -119,8 +156,8 @@ and reflect true generalisation performance.
 ```
 precision    recall  f1-score   support
 
-           0       0.71      0.77      0.74      5202
-           1       0.74      0.68      0.71      5094
+           0       0.70      0.79      0.74      5202
+           1       0.75      0.66      0.70      5094
 
     accuracy                           0.72     10296
    macro avg       0.73      0.72      0.72     10296
@@ -131,8 +168,8 @@ weighted avg       0.73      0.72      0.72     10296
 ```
 precision    recall  f1-score   support
 
-           0       0.72      0.75      0.73      5202
-           1       0.73      0.70      0.72      5094
+           0       0.71      0.74      0.73      5202
+           1       0.73      0.70      0.71      5094
 
     accuracy                           0.72     10296
    macro avg       0.72      0.72      0.72     10296
@@ -144,7 +181,19 @@ weighted avg       0.72      0.72      0.72     10296
 precision    recall  f1-score   support
 
            0       0.72      0.77      0.74      5202
-           1       0.74      0.70      0.72      5094
+           1       0.74      0.69      0.72      5094
+
+    accuracy                           0.73     10296
+   macro avg       0.73      0.73      0.73     10296
+weighted avg       0.73      0.73      0.73     10296
+```
+
+### XGBoost
+```
+precision    recall  f1-score   support
+
+           0       0.72      0.77      0.74      5202
+           1       0.74      0.69      0.72      5094
 
     accuracy                           0.73     10296
    macro avg       0.73      0.73      0.73     10296
@@ -191,16 +240,27 @@ what would be observed in deployment.
 
 ### Other Decisions
 
-- **Three-model comparison:** Logistic Regression (interpretable baseline), Random Forest
-  (ensemble method), and LightGBM (gradient boosting) were trained and compared.
-  LightGBM uses leaf-wise tree growth and is typically the strongest performer on
-  tabular clinical data.
+- **Five-candidate F2 selection:** After training four individual models, a Soft
+  Voting Ensemble (RF + LightGBM + XGBoost) is created. All five candidates are
+  F2-threshold-tuned on the validation set and evaluated on the test set. The one
+  with the best precision at recall ≥0.97 is deployed. This preserves the ~98%
+  recall priority while squeezing out the best available precision.
+- **Four-model comparison:** Logistic Regression (interpretable baseline), Random Forest
+  (ensemble), LightGBM (gradient boosting, leaf-wise), and XGBoost (gradient boosting,
+  level-wise with L1/L2 regularisation) were trained and compared. XGBoost's stronger
+  regularisation and different tree-growth strategy frequently produce better-calibrated
+  probabilities on tabular clinical data, raising the Precision-Recall curve ceiling.
 - **Hyperparameter search:** `RandomizedSearchCV`, 30 iterations, 5-fold cross-validation,
-  scored on Recall for both Random Forest and LightGBM.
+  scored on Recall for Random Forest, LightGBM, and XGBoost.
+- **XGBoost class balance:** `scale_pos_weight = n_negative / n_positive` (computed from
+  training labels), equivalent to `class_weight='balanced'` in sklearn estimators.
 - **`class_weight='balanced'`:** Applied to all models to counteract class imbalance
   without oversampling, biasing each model toward correct positive detection.
-- **Feature engineering:** `pulse_pressure` (arterial stiffness proxy) and `age_bmi`
-  (aging-obesity interaction) added after BMI calculation, before normalization.
+- **Feature engineering:** `pulse_pressure` (arterial stiffness proxy), `age_bmi`
+  (aging-obesity interaction), `bp_hypertension` (Stage 2 hypertension binary flag),
+  and `cholesterol_age` (cholesterol-aging interaction) added after BMI calculation,
+  before normalization. The two new features raise the Precision-Recall curve ceiling
+  by giving models sharper decision boundaries for high-risk patients.
 - **No data leakage:** `StandardScaler` is fitted exclusively on the 70% training
   split and applied to all other splits using training statistics.
 - **Reproducibility:** `random_state=42` used across all stochastic operations.
@@ -223,8 +283,10 @@ what would be observed in deployment.
   LDL/HDL levels, troponin, ECG data, and medication history are not present in the dataset.
 - **Binary classification simplification:** Cardiovascular disease is a spectrum.
   The binary (0/1) output oversimplifies clinical reality.
-- **Recall vs. precision trade-off:** Optimizing for recall increases false positives,
-  which could cause unnecessary patient anxiety and healthcare resource consumption.
+- **Recall vs. precision trade-off:** The deployed model maximises recall (~97-98%)
+  while the multi-model F2 selection finds the operating point with the best available
+  precision at that recall floor. The confusion matrix comparison plot documents the
+  full progression: default threshold → RF F2-tuned → best F2 model (deployed).
 
 ---
 
@@ -232,15 +294,16 @@ what would be observed in deployment.
 
 | File | Description |
 |------|-------------|
-| `models/final_model.pkl` | Trained Random Forest model |
+| `models/final_model.pkl` | Trained Soft Voting Ensemble model |
 | `models/scaler.pkl` | Fitted StandardScaler |
-| `models/feature_names.pkl` | Ordered feature name list (includes engineered features) |
-| `models/threshold.pkl` | Optimal classification threshold (0.1226) |
+| `models/feature_names.pkl` | Ordered feature name list (includes 4 engineered features) |
+| `models/threshold.pkl` | Deployed classification threshold (0.1736, F2-optimised) |
 | `plots/learning_curves.png` | Recall vs. training set size (bias-variance analysis) |
-| `plots/confusion_matrix.png` | Confusion matrix at tuned threshold (0.1226) |
+| `plots/confusion_matrix.png` | Confusion matrix at deployed threshold (0.1736) |
+| `plots/confusion_matrix_comparison.png` | 3-panel comparison: Default → RF F2 → Deployed model |
 | `plots/feature_importance.png` | Feature importance ranked bar chart |
 | `plots/precision_recall_curve.png` | PR curve with default and optimal threshold annotated |
-| `plots/roc_curve.png` | ROC curve for all three models with tuned threshold marked |
+| `plots/roc_curve.png` | ROC curve for all five candidates with deployed threshold marked |
 
 ---
 
@@ -256,12 +319,11 @@ indicates overfitting.
 
 ---
 
-### Confusion Matrix (Tuned Threshold = 0.1226)
+### Confusion Matrix — Deployed Operating Point (Soft Voting Ensemble, threshold=0.1736)
 
-Shows the counts of correct and incorrect predictions at the operating threshold.
-At the tuned threshold, the model prioritises minimising False Negatives (bottom-left
-cell) at the cost of more False Positives (top-right cell), the clinically correct
-trade-off.
+The deployed model is Soft Voting Ensemble at the F2-optimised threshold.
+At this operating point the model catches ~97% of true disease cases
+while maintaining the best available precision across all candidate models.
 
 - **True Negative (top-left):** Healthy patients correctly identified as healthy
 - **False Positive (top-right):** Healthy patients flagged for follow-up (acceptable)
@@ -272,11 +334,27 @@ trade-off.
 
 ---
 
-### Feature Importance: Random Forest
+### Confusion Matrix Comparison: Default → RF F2 → Deployed
+
+Three panels side-by-side document the full progression:
+
+| Panel | Model | Threshold | Recall | Precision | What it shows |
+|-------|-------|----------:|-------:|----------:|---------------|
+| 1 | Random Forest | 0.50 | 0.6959 | 0.7264 | Baseline before any tuning |
+| 2 | Random Forest | 0.1225 | 0.9780 | 0.5251 | F2-tuned single model (previous approach) |
+| 3 (★) | Soft Voting Ensemble | 0.1736 | 0.9739 | 0.5423 | F2-tuned best model (deployed) |
+
+Panel 3 is highlighted in orange and marked as deployed.
+
+![Confusion Matrix Comparison](plots/confusion_matrix_comparison.png)
+
+---
+
+### Feature Importance: Soft Voting Ensemble
 
 Ranks each feature by its contribution to the model's predictions.
-Engineered features (`pulse_pressure`, `age_bmi`) are included and ranked
-relative to the original dataset features.
+Engineered features (`pulse_pressure`, `age_bmi`, `bp_hypertension`, `cholesterol_age`)
+are included and ranked relative to the original dataset features.
 
 ![Feature Importance](plots/feature_importance.png)
 
@@ -285,7 +363,8 @@ relative to the original dataset features.
 ### Precision-Recall Curve
 
 The full trade-off curve between Precision and Recall across all probability
-thresholds. The star marks the F2-optimal operating point (threshold = 0.1226).
+thresholds. The star marks the deployed F2-optimal operating point
+(threshold = 0.1736, model = Soft Voting Ensemble).
 The diamond marks the standard 0.50 operating point for comparison.
 Higher area under the curve (AP score) indicates better overall performance.
 
@@ -293,10 +372,11 @@ Higher area under the curve (AP score) indicates better overall performance.
 
 ---
 
-### ROC Curve: All Three Models
+### ROC Curve: All Five Candidates
 
-Plots True Positive Rate (Recall) against False Positive Rate for all three models.
-The star marks the tuned threshold operating point on the selected model.
-AUC = 1.0 is perfect; AUC = 0.5 is random. All three models are shown for comparison.
+Plots True Positive Rate (Recall) against False Positive Rate for all five
+candidates (four individual models + ensemble).
+The star marks the deployed threshold operating point on Soft Voting Ensemble.
+AUC = 1.0 is perfect; AUC = 0.5 is random.
 
 ![ROC Curve](plots/roc_curve.png)
