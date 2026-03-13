@@ -98,9 +98,9 @@ def generate_project_log(
     log_path: Path,
 ):
     """
-    Generate PROJECT_LOG.md documenting all technical metrics, methodology,
-    and ethical limitations. This file serves as the primary technical report
-    for the assignment submission.
+    Generate PROJECT_LOG.md — the primary technical report for the assignment.
+    Includes all metrics, methodology justification, embedded evaluation plots,
+    and ethical limitations.
     """
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -146,9 +146,32 @@ def generate_project_log(
     pct_removed = 100 * rows_removed / pipeline_stats['rows_raw']
 
     content = textwrap.dedent(f"""\
-    # MediAssist - Project Technical Log
+    # MediAssist — Project Technical Report
 
     **Generated:** {timestamp}
+    **Module:** AI-Powered Medical Diagnosis Support System
+    **Dataset:** Cardiovascular Disease (Kaggle — sulianova/cardiovascular-disease, 70,000 patients)
+
+    ---
+
+    ## Executive Summary
+
+    MediAssist is a cardiovascular disease risk assessment system that combines three
+    machine learning models with a rule-based clinical knowledge engine. The system
+    is optimised for **Recall (Sensitivity)** — the medically correct primary metric
+    for disease screening, where missing a sick patient is far more harmful than a
+    false alarm.
+
+    | Component | Detail |
+    |-----------|--------|
+    | **Dataset** | 70,000 patient records, 12 features + 3 engineered features |
+    | **Models trained** | Logistic Regression, Random Forest (tuned), LightGBM (tuned) |
+    | **Selected model** | {best_metrics['model_name']} |
+    | **Recall at default threshold** | {best_metrics['recall']:.4f} |
+    | **Recall after threshold tuning** | {tuned_metrics['recall']:.4f} |
+    | **Tuned threshold** | {optimal_threshold:.4f} (F2-score optimised on validation set) |
+    | **ROC AUC** | {best_metrics['roc_auc']:.4f} |
+    | **Primary metric** | Recall — minimises false negatives (missed diagnoses) |
 
     ---
 
@@ -321,6 +344,64 @@ def generate_project_log(
     | `plots/feature_importance.png` | Feature importance ranked bar chart |
     | `plots/precision_recall_curve.png` | PR curve with default and optimal threshold annotated |
     | `plots/roc_curve.png` | ROC curve for all three models with tuned threshold marked |
+
+    ---
+
+    ## 10. Evaluation Plots
+
+    ### Learning Curves — Recall vs. Training Set Size
+
+    Shows how training and cross-validation Recall change as more data is used.
+    Converging curves indicate the model has learned adequately; a large gap
+    indicates overfitting.
+
+    ![Learning Curves](plots/learning_curves.png)
+
+    ---
+
+    ### Confusion Matrix (Tuned Threshold = {optimal_threshold:.4f})
+
+    Shows the counts of correct and incorrect predictions at the operating threshold.
+    At the tuned threshold, the model prioritises minimising False Negatives (bottom-left cell)
+    at the cost of more False Positives (top-right cell) — the clinically correct trade-off.
+
+    - **True Negative (top-left):** Healthy patients correctly identified as healthy
+    - **False Positive (top-right):** Healthy patients flagged for follow-up (acceptable)
+    - **False Negative (bottom-left):** Sick patients missed — the error we minimise
+    - **True Positive (bottom-right):** Sick patients correctly detected
+
+    ![Confusion Matrix](plots/confusion_matrix.png)
+
+    ---
+
+    ### Feature Importance — {best_metrics['model_name']}
+
+    Ranks each feature by its contribution to the model's predictions.
+    Engineered features (`pulse_pressure`, `age_bmi`) are included and ranked
+    relative to the original dataset features.
+
+    ![Feature Importance](plots/feature_importance.png)
+
+    ---
+
+    ### Precision-Recall Curve
+
+    The full trade-off curve between Precision and Recall across all probability
+    thresholds. The star marks the F2-optimal operating point (threshold = {optimal_threshold:.4f}).
+    The diamond marks the standard 0.50 operating point for comparison.
+    Higher area under the curve (AP score) indicates better overall performance.
+
+    ![Precision-Recall Curve](plots/precision_recall_curve.png)
+
+    ---
+
+    ### ROC Curve — All Models
+
+    Plots True Positive Rate (Recall) against False Positive Rate for all three models.
+    The star marks the tuned threshold operating point on the selected model.
+    AUC = 1.0 is perfect; AUC = 0.5 is random. All three models are shown for comparison.
+
+    ![ROC Curve](plots/roc_curve.png)
     """)
 
     log_path.write_text(content, encoding="utf-8")
