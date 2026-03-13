@@ -3,7 +3,7 @@
 Backend engine for cardiovascular disease prediction using a **hybrid approach**:
 a rule-based clinical knowledge engine combined with three optimised machine learning
 models (Logistic Regression, Random Forest, LightGBM). The system is optimised for
-**Recall (Sensitivity)** — the medically correct primary metric for disease screening.
+**Recall (Sensitivity)**, the medically correct primary metric for disease screening.
 
 ---
 
@@ -14,8 +14,8 @@ errors are not equal:
 
 | Error Type | What it means | Clinical consequence |
 |------------|---------------|----------------------|
-| **False Negative** (missed disease) | Model says "healthy"; patient has disease | Patient goes untreated — potentially fatal |
-| **False Positive** (false alarm) | Model says "disease"; patient is healthy | Patient receives a follow-up consultation — inconvenient, not dangerous |
+| **False Negative** (missed disease) | Model says "healthy"; patient has disease | Patient goes untreated, potentially fatal |
+| **False Positive** (false alarm) | Model says "disease"; patient is healthy | Patient receives a follow-up consultation, inconvenient but not dangerous |
 
 **Recall (Sensitivity) = TP / (TP + FN)** measures the proportion of actual disease
 cases the model correctly identifies. Maximising Recall minimises missed diagnoses.
@@ -99,7 +99,7 @@ streamlit run app.py
 ```
 
 Opens a browser-based form for testing the prediction API manually.
-This is a temporary reference implementation — see [Frontend Integration](#using-bridgepy-frontend-integration)
+This is a temporary reference implementation; see [Frontend Integration](#using-bridgepy-frontend-integration)
 for how to build the production frontend.
 
 ---
@@ -144,8 +144,8 @@ MediAssist/
 
 `bridge.py` is the **only file a frontend application needs to import**.
 Run `main.py` once to generate the model artifacts, then call `get_prediction()`.
-Artifacts are lazy-loaded on the first call and cached for all subsequent calls —
-no need to manage model state yourself.
+Artifacts are lazy-loaded on the first call and cached for all subsequent calls.
+No need to manage model state yourself.
 
 ### Function Signature
 
@@ -229,9 +229,9 @@ print(result["risk_assessment"])   # {"risk_level": "High Risk", ...}
 ### Error Handling
 
 `get_prediction()` raises:
-- `ValueError` — required keys are missing, or a value is out of its defined range
-- `TypeError` — a value is not numeric
-- `FileNotFoundError` — model artifacts not found; run `python main.py` first
+- `ValueError`: required keys are missing, or a value is out of its defined range
+- `TypeError`: a value is not numeric
+- `FileNotFoundError`: model artifacts not found; run `python main.py` first
 
 ---
 
@@ -239,11 +239,11 @@ print(result["risk_assessment"])   # {"risk_level": "High Risk", ...}
 
 | Design choice | Justification |
 |---------------|---------------|
-| **Recall as primary metric** | Minimises false negatives (missed diagnoses) — the highest-cost error in medical screening. Accuracy is misleading here because it weights all errors equally. |
+| **Recall as primary metric** | Minimises false negatives (missed diagnoses), the highest-cost error in medical screening. Accuracy is misleading because it weights all errors equally. |
 | **F2-score for threshold tuning** | Weights Recall 2× more than Precision, reflecting the asymmetric cost of false negatives over false positives. |
 | **Separate 15% validation split** | Threshold tuned on val set; test-set metrics are never contaminated and reflect true generalisation performance. |
 | **70/15/15 train/val/test split** | Standard practice for systems with a post-training search step (threshold tuning). |
-| **Three models compared** | LR (interpretable baseline), RF (ensemble), LightGBM (gradient boosting — strongest on tabular data). |
+| **Three models compared** | LR (interpretable baseline), RF (ensemble), LightGBM (gradient boosting, typically strongest on tabular data). |
 | **RandomizedSearchCV (30 iter, 5-fold)** | Scored on Recall; avoids exhaustive grid-search cost while still exploring the hyperparameter space. |
 | **`class_weight='balanced'`** | Counters class imbalance without oversampling; biases all models toward detecting positive cases. |
 | **StandardScaler on train only** | Prevents data leakage; val and test transforms use training-set statistics only. |
