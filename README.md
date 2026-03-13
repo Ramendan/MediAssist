@@ -261,3 +261,20 @@ print(result["risk_assessment"])   # {"risk_level": "High Risk", ...}
 - Full classification reports, confusion matrices, and ethical disclaimers are in `PROJECT_LOG.md`.
 - This is an educational decision-support tool. It is **not** intended for clinical use.
 - See `app.py` for a working reference implementation of a UI built on top of `bridge.py`.
+
+## Model artifacts and Git LFS
+
+The trained model artifact `models/final_model.pkl` is large and is tracked using
+Git Large File Storage (Git LFS). If you clone this repository and want to fetch
+the pre-trained model artifact, run:
+
+```bash
+git clone https://github.com/Ramendan/MediAssist.git
+cd MediAssist
+git lfs install
+git lfs pull
+```
+
+If you cannot or do not want to fetch LFS objects, you can retrain the model
+locally by running `python main.py` to generate the artifacts under `models/`.
+Note that training may take 10–30 minutes depending on your machine.

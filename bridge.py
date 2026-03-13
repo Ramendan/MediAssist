@@ -96,6 +96,8 @@ def _preprocess(patient_data: dict) -> np.ndarray:
     bmi = patient_data["weight"] / (height_m ** 2)
     pulse_pressure = patient_data["ap_hi"] - patient_data["ap_lo"]
     age_bmi = patient_data["age"] * bmi
+    bp_hypertension = 1 if (patient_data["ap_hi"] >= 140 or patient_data["ap_lo"] >= 90) else 0
+    cholesterol_age = patient_data["cholesterol"] * patient_data["age"]
 
     # Build feature dict with all engineered features
     features = {
@@ -103,6 +105,8 @@ def _preprocess(patient_data: dict) -> np.ndarray:
         "bmi": round(bmi, 2),
         "pulse_pressure": round(pulse_pressure, 2),
         "age_bmi": round(age_bmi, 2),
+        "bp_hypertension": int(bp_hypertension),
+        "cholesterol_age": round(cholesterol_age, 2),
     }
 
     # Order features to match training

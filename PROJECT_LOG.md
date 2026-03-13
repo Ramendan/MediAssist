@@ -307,6 +307,22 @@ what would be observed in deployment.
 
 ---
 
+**Note about large artifacts and Git LFS**
+
+The trained model file `models/final_model.pkl` is stored using Git Large File
+Storage (Git LFS) and is referenced in `.gitattributes`. After cloning the
+repository, fetch LFS objects using:
+
+```bash
+git lfs install
+git lfs pull
+```
+
+If you cannot use Git LFS, you can regenerate all model artifacts locally by
+running `python main.py` (this will train the models and write artifacts to
+`models/`). See the README for full setup instructions.
+
+
 ## 10. Evaluation Plots
 
 ### Learning Curves: Recall vs. Training Set Size
